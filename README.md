@@ -26,7 +26,7 @@ An end-to-end SQL case study analyzing shipment operations using an educational 
 
 **Key Finding:** Among 34 shipments with recorded delivery dates, only one exceeded the five-day transit threshold.
 
-*Average duration metrics exclude NULL values. The delay rate is calculated using only shipments with known arrival dates.*
+Average duration metrics exclude `NULL` values. The delay rate is calculated using only shipments with known arrival dates.
 
 ---
 
@@ -73,13 +73,17 @@ shipment_item (N)
 
 Each shipment may contain multiple shipment items.
 
-The analytical layer includes:
+### Analytical Layer
 
-- `shipment_kpi`
-- `shipment_kpi_global`
-- `shipment_kpi_carrier`
-- `shipment_kpi_urgency`
-- `shipment_kpi_month`
+The analytical model includes five derived tables:
+
+| Table | Purpose |
+|---|---|
+| `shipment_kpi` | Shipment-level delivery metrics and status classification |
+| `shipment_kpi_global` | Overall delivery performance indicators |
+| `shipment_kpi_carrier` | Carrier-level performance comparison |
+| `shipment_kpi_urgency` | Priority-based delivery performance |
+| `shipment_kpi_month` | Monthly operational performance trends |
 
 ---
 
@@ -87,21 +91,22 @@ The analytical layer includes:
 
 **Database:** SQLite 3
 
-**Core SQL Skills Demonstrated:**
+### Core SQL Skills Demonstrated
 
 - Relational database modeling
 - Primary and foreign key identification
-- Data integrity validation
+- Data integrity and quality validation
 - Text standardization using `LOWER()` and `REPLACE()`
 - Customer name concatenation
-- Conditional logic with `CASE WHEN`
+- Conditional logic using `CASE WHEN`
 - Date calculations using `julianday()`
 - Monthly grouping using `strftime()`
 - Aggregations using `COUNT()`, `MIN()`, `MAX()`, `SUM()`, and `AVG()`
-- Segmentation using `GROUP BY` and `HAVING`
+- Data segmentation using `GROUP BY`
 - Numerical formatting using `ROUND()`
 - Division-by-zero protection using `NULLIF()`
 - KPI table creation and validation
+- Analytical reporting and performance comparison
 
 ### Delivery Time Metrics
 
@@ -123,7 +128,7 @@ julianday(arrival_date) - julianday(dispatch_date)
 julianday(arrival_date) - julianday(order_date)
 ```
 
-All delivery durations are calculated in days. Missing date values produce NULL duration results.
+All delivery durations are calculated in days. Missing date values produce `NULL` duration results.
 
 ### Delivery Status Classification
 
@@ -147,6 +152,8 @@ CASE
     ELSE 0
 END AS delay
 ```
+
+Shipments without recorded arrival dates are not classified as on time or delayed.
 
 ---
 
@@ -183,14 +190,14 @@ This pattern is consistent with priority-based fulfillment, although the dataset
 
 ### 3. Monthly Performance Trends
 
-| Month | Shipments | Avg. Total Delivery Time |
+| Month | Shipments | Average Total Delivery Time |
 |---|---:|---:|
 | April 2022 | 3 | 4.00 days |
 | May 2022 | 2 | 5.50 days |
 | June 2022 | 11 | 4.50 days |
 | July 2022 | 7 | 4.20 days |
 | August 2022 | 15 | 3.93 days |
-| September 2022 | 11 | NULL |
+| September 2022 | 11 | N/A |
 
 **Business Insight:**
 
@@ -207,7 +214,7 @@ September's average total delivery time cannot be calculated because its shipmen
 | Delayed Shipments | 1 |
 | On-Time Shipments | 33 |
 | Unknown Delivery Outcomes | 15 |
-| **Global Delay Rate** | **2.94%** |
+| Global Delay Rate | 2.94% |
 
 **Business Insight:**
 
@@ -224,14 +231,38 @@ This avoids incorrectly classifying unresolved shipments as on time.
 ```text
 dhl-logistics-sql-analytics/
 ├── README.md
-├── data/
-│   ├── shipment.csv
-│   └── shipment_item.csv
 └── sql/
     ├── 01_database_setup.sql
     ├── 02_cleaning_and_kpis.sql
     └── 03_quality_checks.sql
 ```
+
+### SQL Scripts
+
+**01 — Database Setup**
+
+Creates the relational database schema, establishes primary and foreign key relationships, and inserts the shipment and shipment-item records.
+
+**02 — Data Cleaning and KPI Analysis**
+
+Creates the analytical shipment table, applies cleaning transformations, calculates delivery metrics, and generates carrier, urgency, monthly, and global KPI summaries.
+
+**03 — Data Quality and Validation**
+
+Performs quality checks covering:
+
+- Source data completeness
+- Primary key uniqueness
+- Referential integrity
+- Missing values
+- Date chronology
+- Product quantity validity
+- Carrier and tracking-code consistency
+- Delivery status classification
+- Delivery duration consistency
+- Delay rate verification
+- Analytical table reconciliation
+- Global KPI consistency
 
 ---
 
@@ -239,7 +270,7 @@ dhl-logistics-sql-analytics/
 
 **Requirements:** SQLite 3
 
-Create a fresh SQLite database and execute the SQL scripts in the following order:
+Create a fresh SQLite database and execute the scripts in the following order.
 
 ```bash
 sqlite3 dhl_analysis.db < sql/01_database_setup.sql
@@ -249,7 +280,11 @@ sqlite3 -header -column dhl_analysis.db < sql/03_quality_checks.sql
 
 Alternatively, open the scripts in [SQLite Online](https://sqliteonline.com/) and execute them sequentially.
 
-The scripts recreate the seven DHL-specific tables. Use a fresh database to avoid overwriting existing tables.
+The scripts recreate the seven project-specific tables: two source tables and five analytical tables.
+
+**Important:** Run the database setup script in a fresh database to avoid conflicts with existing tables.
+
+The source records are embedded in `01_database_setup.sql`, so separate CSV files are not required to reproduce the analysis.
 
 ---
 
@@ -267,15 +302,21 @@ Certain tracking-code prefixes do not match their associated carrier labels.
 
 These inconsistencies are documented rather than automatically corrected.
 
+Tracking-code prefixes are treated as potential indicators of carrier identity, not as verified carrier assignments.
+
 ### Sample Size
 
 The dataset contains 49 shipments.
 
-The course exercise specifies a `HAVING COUNT(*) > 50` carrier filter. As no carrier meets this threshold, the persisted carrier KPI table includes all groups for meaningful descriptive comparison.
+The original course exercise specifies a `HAVING COUNT(*) > 50` carrier filter. As no carrier meets this threshold, applying the filter would return no results.
+
+Therefore, the persisted carrier KPI table includes all carrier groups for meaningful descriptive comparison.
 
 ### Missing Values
 
 Shipments without recorded arrival dates are excluded from completed-delivery averages and delay-rate calculations.
+
+This prevents missing delivery outcomes from distorting performance indicators.
 
 ### KPI Ratio Interpretation
 
@@ -287,9 +328,19 @@ AVG(dispatch_time) / NULLIF(AVG(total_time), 0)
 
 Because missing observations can affect the averages differently, this metric represents a ratio of group averages rather than an average per-shipment ratio.
 
+### Analytical Scope
+
+The analysis is descriptive and based on a small educational dataset.
+
+Differences between carriers, shipment priorities, and reporting periods should not be interpreted as evidence of causal relationships or statistically significant performance differences.
+
 ### Data Provenance
 
-This project uses educational data supplied as part of the Workintech program. Redistribution permissions should be confirmed before publishing the source records.
+The project uses educational data supplied as part of the Workintech program, including shipment records, shipment-item records, and an accompanying spreadsheet.
+
+Customer and tracking fields are integrated into the shipment-level analytical model.
+
+Redistribution permissions for the educational source records should be confirmed before public publication.
 
 ---
 
@@ -304,22 +355,22 @@ Potential extensions include:
 - Larger-scale operational performance benchmarking
 - Predictive delivery delay modeling
 
+These improvements represent potential future extensions and are not part of the current implementation.
+
 ---
 
 ## Project Information
 
-**Project:** DHL Delivery Performance — SQL Analytics Case Study
-
-**Program:** Workintech — Data Science & AI
-
-**Technologies:** SQLite, SQL
-
-**Focus Areas:** Logistics Analytics, Operational KPIs, Data Cleaning, Performance Reporting
-
-**Project Type:** Independent Educational Portfolio Project
+| Field | Details |
+|---|---|
+| Project | DHL Delivery Performance — SQL Analytics Case Study |
+| Program | Workintech — Data Science & AI |
+| Technologies | SQLite, SQL |
+| Focus Areas | Logistics Analytics, Operational KPIs, Data Cleaning, Performance Reporting |
+| Project Type | Independent Educational Portfolio Project |
 
 ---
 
-*This project was developed for educational and portfolio purposes and is not affiliated with DHL.*
+This project was developed for educational and portfolio purposes and is not affiliated with DHL.
 
 **Author:** Nagehan BAS
